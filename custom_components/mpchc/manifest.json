@@ -1,0 +1,14 @@
+{
+  "domain": "mpchc",
+  "name": "Media Player Classic Home Cinema (MPC-HC)",
+    "codeowners": [
+    "@albaintor"
+  ],
+  "documentation": "https://www.home-assistant.io/integrations/mpchc",
+  "config_flow": false,
+  "homekit": {},
+  "issue_tracker": "https://www.home-assistant.io/issues",
+  "ssdp": [],
+  "version": "1.0.0",
+  "zeroconf": []
+}
