@@ -1,4 +1,4 @@
-# Home Assistant integration for MPC-HC
+# Home Assistant integration for MPC-HC and MPC-BE
 This integration was in the past integrated into Home Assistant core then abandonned. I have updated it to make it work with new releases and added new functionalities
 
 The mpchc platform allows you to connect a Media Player Classic Home Cinema (MPC-HC) or MPC-BE to Home Assistant. It will allow you to see the current playing item, control playback and respond to changes in the player’s state.
