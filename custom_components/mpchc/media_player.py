@@ -4,14 +4,18 @@ import datetime as dt
 import logging
 import re
 
-import requests
+import aiohttp
 import voluptuous as vol
+from aiohttp import ClientTimeout, ServerTimeoutError, ClientConnectionError
+from aiohttp.web_exceptions import HTTPRequestTimeout
 
-from homeassistant.components.media_player import PLATFORM_SCHEMA, MediaPlayerEntity, MediaType, MediaPlayerState
+from homeassistant.components.media_player import PLATFORM_SCHEMA, MediaPlayerEntity, MediaType, MediaPlayerState, \
+    ENTITY_ID_FORMAT
 from homeassistant.components.media_player.const import (
     MediaPlayerEntityFeature,
     MEDIA_TYPE_VIDEO
 )
+from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
 from homeassistant.const import (
     CONF_HOST,
     CONF_NAME,
@@ -19,25 +23,26 @@ from homeassistant.const import (
 )
 import homeassistant.helpers.config_validation as cv
 import homeassistant.util.dt as dt_util
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from .const import DEFAULT_NAME, DEFAULT_PORT, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-DEFAULT_NAME = "MPC-HC"
-DEFAULT_PORT = 13579
-
 SUPPORT_MPCHC = (
-    MediaPlayerEntityFeature.TURN_OFF
-    | MediaPlayerEntityFeature.NEXT_TRACK
-    | MediaPlayerEntityFeature.PAUSE
-    | MediaPlayerEntityFeature.PREVIOUS_TRACK
-    | MediaPlayerEntityFeature.VOLUME_STEP
-    | MediaPlayerEntityFeature.VOLUME_MUTE
-    | MediaPlayerEntityFeature.PLAY
-    | MediaPlayerEntityFeature.STOP
-    | MediaPlayerEntityFeature.SEEK
+        MediaPlayerEntityFeature.TURN_OFF
+        | MediaPlayerEntityFeature.NEXT_TRACK
+        | MediaPlayerEntityFeature.PAUSE
+        | MediaPlayerEntityFeature.PREVIOUS_TRACK
+        | MediaPlayerEntityFeature.VOLUME_STEP
+        | MediaPlayerEntityFeature.VOLUME_MUTE
+        | MediaPlayerEntityFeature.PLAY
+        | MediaPlayerEntityFeature.STOP
+        | MediaPlayerEntityFeature.SEEK
     #| MediaPlayerEntityFeature.BROWSE_MEDIA TODO
 )
-
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -48,24 +53,32 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 )
 
 
-def setup_platform(hass, config, add_entities, discovery_info=None):
+async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the MPC-HC platform."""
-    name = config.get(CONF_NAME)
-    host = config.get(CONF_HOST)
-    port = config.get(CONF_PORT)
+    _LOGGER.info("Configure MPCHC device %s : %s", config)
+    hass.async_create_task(
+        hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": SOURCE_IMPORT}, data=config
+        )
+    )
 
-    url = f"{host}:{port}"
-    _LOGGER.info("Configure MPCHC device %s : %s", name, url);
-    add_entities([MpcHcDevice(name, url)], True)
+
+async def async_setup_entry(
+        hass: HomeAssistant,
+        config_entry: ConfigEntry,
+        async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Add Media Player from a config entry."""
+    async_add_entities([MpcHcDevice(config_entry)])
 
 
 class MpcHcDevice(MediaPlayerEntity):
     """Representation of a MPC-HC server."""
 
-    def __init__(self, name, url):
+    def __init__(self, config_entry: ConfigEntry):
         """Initialize the MPC-HC device."""
-        self._name = name
-        self._url = url
+        self._name = config_entry.data[CONF_NAME]
+        self._url = f'{config_entry.data[CONF_HOST]}:{config_entry.data[CONF_PORT]}'
         self._player_variables = {}
         self._available = False
         self._media_duration = None
@@ -74,15 +87,34 @@ class MpcHcDevice(MediaPlayerEntity):
         self._media_type = MEDIA_TYPE_VIDEO
         self._media_title = None
         self._media_state = MediaPlayerState.OFF
+        self._session = aiohttp.ClientSession()
+        entity_name = self._url.lstrip('http://')
+        self._unique_id = ENTITY_ID_FORMAT.format(
+            f"{entity_name}_media_player")
 
-    def update(self):
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers={
+                # Mac address is unique identifiers within a specific domain
+                (DOMAIN, self._url)
+            },
+            name=self._name,
+            manufacturer=DEFAULT_NAME,
+            model=""
+        )
+
+    @property
+    def unique_id(self) -> str | None:
+        return self._unique_id
+
+    async def async_update(self):
         """Get the latest details."""
         try:
             _LOGGER.debug("MPC udpate : %s", self._url)
-            response = requests.get(f"{self._url}/variables.html", data=None, timeout=3)
-            response.encoding = response.apparent_encoding
-
-            mpchc_variables = re.findall(r'<p id="(.+?)">(.+?)</p>', response.text)
+            response = await self._session.get(f"{self._url}/variables.html", timeout=ClientTimeout(3))
+            mpchc_variables = re.findall(r'<p id="(.+?)">(.+?)</p>', await response.text(encoding="utf-8"))
 
             _LOGGER.debug("MPC data %s", mpchc_variables)
             for var in mpchc_variables:
@@ -105,12 +137,12 @@ class MpcHcDevice(MediaPlayerEntity):
                 self._media_position = int(position[0]) * 3600 + int(position[1]) * 60 + int(position[2])
                 self._media_title = self._player_variables.get("file", None)
                 if self._media_title:
-                    self._media_title = self._media_title.rsplit( ".",  1)[0]
+                    self._media_title = self._media_title.rsplit(".", 1)[0]
             except Exception:
                 pass
             self._available = True
-        except requests.exceptions.RequestException as exr:
-            _LOGGER.error("MPC error %s", exr)
+        except (ServerTimeoutError, HTTPRequestTimeout, ClientConnectionError) as exr:
+            _LOGGER.debug("MPC error %s", exr)
             if self.available:
                 _LOGGER.error("Could not connect to MPC-HC at: %s", self._url)
 
@@ -119,12 +151,12 @@ class MpcHcDevice(MediaPlayerEntity):
         except Exception as ex:
             _LOGGER.error("MPC error %s", ex)
 
-    def _send_command(self, command_id):
+    async def _send_command(self, command_id):
         """Send a command to MPC-HC via its window message ID."""
         try:
             params = {"wm_command": command_id}
-            requests.get(f"{self._url}/command.html", params=params, timeout=3)
-        except requests.exceptions.RequestException:
+            await self._session.get(f"{self._url}/command.html", params=params, timeout=ClientTimeout(3))
+        except (ServerTimeoutError, HTTPRequestTimeout, ClientConnectionError):
             _LOGGER.error(
                 "Could not send command %d to MPC-HC at: %s", command_id, self._url
             )
@@ -182,49 +214,49 @@ class MpcHcDevice(MediaPlayerEntity):
         """Flag media player features that are supported."""
         return SUPPORT_MPCHC
 
-    def turn_off(self) -> None:
+    async def turn_off(self) -> None:
         """Send quit command."""
-        self._send_command(816)
+        await self._send_command(816)
 
-    def media_seek(self, position: float) -> None:
+    async def async_media_seek(self, position: float) -> None:
         try:
             params = {"wm_command": -1, "position": str(datetime.timedelta(seconds=position))}
-            requests.post(f"{self._url}/command.html", params=params, timeout=3)
-            self.update()
-            self.schedule_update_ha_state()
-        except requests.exceptions.RequestException:
+            await self._session.post(f"{self._url}/command.html", params=params, timeout=ClientTimeout(3))
+            await self.async_update()
+            self.async_schedule_update_ha_state()
+        except (ServerTimeoutError, HTTPRequestTimeout, ClientConnectionError):
             _LOGGER.error(
                 "Could not send command %d to MPC-HC at: %s", -1, self._url
             )
 
-    def volume_up(self):
+    async def volume_up(self):
         """Volume up the media player."""
-        self._send_command(907)
+        await self._send_command(907)
 
-    def volume_down(self):
+    async def volume_down(self):
         """Volume down media player."""
-        self._send_command(908)
+        await self._send_command(908)
 
-    def mute_volume(self, mute):
+    async def mute_volume(self, mute):
         """Mute the volume."""
-        self._send_command(909)
+        await self._send_command(909)
 
-    def media_play(self):
+    async def media_play(self):
         """Send play command."""
-        self._send_command(887)
+        await self._send_command(887)
 
-    def media_pause(self):
+    async def media_pause(self):
         """Send pause command."""
-        self._send_command(888)
+        await self._send_command(888)
 
-    def media_stop(self):
+    async def media_stop(self):
         """Send stop command."""
-        self._send_command(890)
+        await self._send_command(890)
 
-    def media_next_track(self):
+    async def media_next_track(self):
         """Send next track command."""
-        self._send_command(920)
+        await self._send_command(920)
 
-    def media_previous_track(self):
+    async def media_previous_track(self):
         """Send previous track command."""
-        self._send_command(919)
+        await self._send_command(919)

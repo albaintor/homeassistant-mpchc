@@ -5,7 +5,7 @@
     "@albaintor"
   ],
   "documentation": "https://www.home-assistant.io/integrations/mpchc",
-  "config_flow": false,
+  "config_flow": true,
   "homekit": {},
   "issue_tracker": "https://www.home-assistant.io/issues",
   "ssdp": [],

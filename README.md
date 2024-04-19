@@ -8,19 +8,29 @@ For this component to function, you will need to enable the Web Interface in the
 
 HACS has to be installed on your Home Assistant instance.
 
-**Features to be considered in the future**
-- Add remote entity for additional commands
-- Migrate code to asyncio
+## Features to be considered in the future
+- ~~Add remote entity for additional commands~~ [done]
+- ~~Migrate code to asyncio~~ [done]
 - Media browsing
-- Add config flow to avoid manual configuration inside `configuration.yaml`
+- ~~Add config flow to avoid manual configuration inside `configuration.yaml`~~ [done]
 
 
-**Installation**
+## Installation
 
 Copy the `custom_components` content to your home assistant `/config/custom_components/` folder.
 
 Beware that the existing custom_components folder in Home Assistant could contain other integrations. You just have to copy the `mpchc` subfolder into the `custom_components` folder so that it sits next to the other components.
 
+
+## Configuration through setup flow
+Go into Integrations > Add an integration, and select MPC-HC
+Then configure :
+- Name of your MPC-HC instance that will be displayed in Home Assistant
+- Host of the MPC-HC (ip or hostname)
+- Port (if not changed else let default port)
+
+
+## Configuration from config file (not recommended)
 Then to add MPC-HC to your installation, add the following to your `configuration.yaml` file:
 ```yaml
 # Example configuration.yaml entry
