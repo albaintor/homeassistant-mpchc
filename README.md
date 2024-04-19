@@ -24,6 +24,8 @@ Beware that the existing custom_components folder in Home Assistant could contai
 
 ## Configuration through setup flow
 Go into Integrations > Add an integration, and select MPC-HC
+![image](https://github.com/albaintor/homeassistant-mpchc/assets/118518828/2b7c4a71-1248-4d5b-8d67-1b2b83570bc2)
+
 Then configure :
 - Name of your MPC-HC instance that will be displayed in Home Assistant
 - Host of the MPC-HC (ip or hostname)
