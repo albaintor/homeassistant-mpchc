@@ -12,9 +12,14 @@ HACS has to be installed on your Home Assistant instance.
 - Add remote entity for additional commands
 - Migrate code to asyncio
 - Media browsing
+- Add config flow to avoid manual configuration inside `configuration.yaml`
+
 
 **Installation**
-Copy the `custom_components` content to your home assistant `/config/custom_components/` folder
+
+Copy the `custom_components` content to your home assistant `/config/custom_components/` folder.
+
+Beware that the existing custom_components folder in Home Assistant could contain other integrations. You just have to copy the `mpchc` subfolder into the `custom_components` folder so that it sits next to the other components.
 
 Then to add MPC-HC to your installation, add the following to your `configuration.yaml` file:
 ```yaml
