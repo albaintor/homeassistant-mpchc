@@ -138,7 +138,7 @@ class MpcHcDevice(MediaPlayerEntity):
                 self._media_title = self._player_variables.get("file", None)
                 if self._media_title:
                     self._media_title = self._media_title.rsplit(".", 1)[0]
-            except Exception:
+            except Exception as ex:
                 pass
             self._available = True
         except (ServerTimeoutError, HTTPRequestTimeout, ClientConnectionError) as exr:
@@ -155,6 +155,7 @@ class MpcHcDevice(MediaPlayerEntity):
         """Send a command to MPC-HC via its window message ID."""
         try:
             params = {"wm_command": command_id}
+            _LOGGER.debug("Send command %s %s", f"{self._url}/command.html", params)
             await self._session.get(f"{self._url}/command.html", params=params, timeout=ClientTimeout(3))
         except (ServerTimeoutError, HTTPRequestTimeout, ClientConnectionError):
             _LOGGER.error(
@@ -214,7 +215,7 @@ class MpcHcDevice(MediaPlayerEntity):
         """Flag media player features that are supported."""
         return SUPPORT_MPCHC
 
-    async def turn_off(self) -> None:
+    async def async_turn_off(self) -> None:
         """Send quit command."""
         await self._send_command(816)
 
@@ -229,34 +230,38 @@ class MpcHcDevice(MediaPlayerEntity):
                 "Could not send command %d to MPC-HC at: %s", -1, self._url
             )
 
-    async def volume_up(self):
+    async def async_volume_up(self):
         """Volume up the media player."""
         await self._send_command(907)
 
-    async def volume_down(self):
+    async def async_volume_down(self):
         """Volume down media player."""
         await self._send_command(908)
 
-    async def mute_volume(self, mute):
+    async def async_mute_volume(self, mute):
         """Mute the volume."""
         await self._send_command(909)
 
-    async def media_play(self):
+    async def async_media_play(self):
         """Send play command."""
         await self._send_command(887)
 
-    async def media_pause(self):
+    async def async_media_play_pause(self):
+        """Send play/pause command."""
+        await self._send_command(888)
+
+    async def async_media_pause(self):
         """Send pause command."""
         await self._send_command(888)
 
-    async def media_stop(self):
+    async def async_media_stop(self):
         """Send stop command."""
         await self._send_command(890)
 
-    async def media_next_track(self):
+    async def async_media_next_track(self):
         """Send next track command."""
         await self._send_command(920)
 
-    async def media_previous_track(self):
+    async def async_media_previous_track(self):
         """Send previous track command."""
         await self._send_command(919)
