@@ -9,6 +9,6 @@
   "homekit": {},
   "issue_tracker": "https://www.home-assistant.io/issues",
   "ssdp": [],
-  "version": "1.0.0",
+  "version": "1.0.1",
   "zeroconf": []
 }

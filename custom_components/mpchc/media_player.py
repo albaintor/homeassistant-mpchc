@@ -13,7 +13,7 @@ from homeassistant.components.media_player import PLATFORM_SCHEMA, MediaPlayerEn
     ENTITY_ID_FORMAT
 from homeassistant.components.media_player.const import (
     MediaPlayerEntityFeature,
-    MEDIA_TYPE_VIDEO
+    MediaType
 )
 from homeassistant.config_entries import ConfigEntry, SOURCE_IMPORT
 from homeassistant.const import (
@@ -84,7 +84,7 @@ class MpcHcDevice(MediaPlayerEntity):
         self._media_duration = None
         self._media_position = None
         self._media_last_updated = None
-        self._media_type = MEDIA_TYPE_VIDEO
+        self._media_type = MediaType.VIDEO
         self._media_title = None
         self._media_state = MediaPlayerState.OFF
         self._session = aiohttp.ClientSession()
@@ -149,7 +149,7 @@ class MpcHcDevice(MediaPlayerEntity):
             self._player_variables = {}
             self._available = False
         except Exception as ex:
-            _LOGGER.error("MPC error %s", ex)
+            _LOGGER.debug("MPC error %s", ex)
 
     async def _send_command(self, command_id):
         """Send a command to MPC-HC via its window message ID."""
